@@ -9,7 +9,7 @@
  * MIT licence. Not affiliated with Brother Industries or PaperCut Software.
  */
 (() => {
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
   const TAG = 'printing-impact-card';
 
   // Artwork. build.py swaps the null below for the 3D icons and illustrations as data URIs, so
@@ -62,6 +62,7 @@
     since: 'input_datetime.printer_in_service_since',
     tooltips: true,
     day_night: false,
+    dark_at_night: false,
     sun: 'sun.sun',
     paper_price: 'input_number.printer_paper_price_per_ream',
     toner_price: 'input_number.printer_toner_price',
@@ -71,7 +72,7 @@
 
   const LABELS = {
     title: 'Title', subtitle: 'Subtitle', flat_icons: 'Flat icons', tooltips: 'Descriptions on hover',
-    day_night: 'Night scene after sunset', sun: 'Sun entity', illustration_night: 'Night illustration URL (optional)',
+    day_night: 'Night scene after sunset', dark_at_night: 'Dark look after sunset', sun: 'Sun entity', illustration_night: 'Night illustration URL (optional)',
     trees: 'Trees', co2: 'CO₂', paper_energy: 'Paper energy', bulb_hours: 'Bulb hours',
     sheets_month: 'Sheets this month', sheets_total: 'Sheets total', cost: 'Cost (total)',
     cost_month: 'Cost (this month)', since: 'In service since (date)', asset_base: 'Asset folder URL (optional)',
@@ -216,6 +217,7 @@
               { name: 'flat_icons', selector: { boolean: {} } },
               { name: 'tooltips', selector: { boolean: {} } },
               { name: 'day_night', selector: { boolean: {} } },
+              { name: 'dark_at_night', selector: { boolean: {} } },
             ],
           },
           {
@@ -252,6 +254,7 @@
           flat_icons: 'Use the flat icon set instead of the 3D icons.',
           tooltips: 'Hover (or long-press on a phone) to explain each figure.',
           day_night: 'Show the night-time picture while the sun is down.',
+          dark_at_night: 'Use the dark version of the card while the sun is down, whatever your theme.',
           illustration_night: 'Your own night-time picture. Leave blank to use the built-in one.',
           illustration: 'Your own printer picture, e.g. /local/my-printer.png. Square, transparent PNG works best.',
           illustration_dark: 'Optional separate picture for dark mode. Leave blank to use the one above.',
@@ -266,16 +269,20 @@
       this._render();
     }
 
-    // Night while the sun is below the horizon (day_night: true), from the sun integration
-    _nightFor(hass) {
-      const c = this._config || {};
-      if (!c.day_night) return false;
-      const sun = hass?.states?.[c.sun || 'sun.sun'];
+    // Whether the sun is below the horizon, from the sun integration
+    _sunDown(hass) {
+      const sun = hass?.states?.[(this._config || {}).sun || 'sun.sun'];
       return !!sun && sun.state === 'below_horizon';
     }
 
+    // Night picture while the sun is down (day_night: true)
+    _nightFor(hass) {
+      return !!(this._config || {}).day_night && this._sunDown(hass);
+    }
+
     set hass(hass) {
-      const dark = !!hass?.themes?.darkMode;
+      // Dark when the theme is, or after sunset with dark_at_night: true
+      const dark = !!hass?.themes?.darkMode || (!!this._config?.dark_at_night && this._sunDown(hass));
       const night = this._nightFor(hass);
       const first = !this._hass;
       this._hass = hass;

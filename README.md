@@ -40,6 +40,9 @@ Turn on **Night scene after sunset** and the printer's picture follows the sun: 
 while it's up, a moonlit version once it sets. Nothing else on the card changes. It uses Home
 Assistant's built-in sun integration, so it follows your location and the seasons with no set-up.
 
+Turn on **Dark look after sunset** as well and the whole card switches to its dark version at night,
+even if your Home Assistant theme is light.
+
 ![Day and night, in light and dark mode](docs/day-night.png)
 
 ### What each figure means
@@ -155,6 +158,7 @@ If you used the package, that's all it needs. Everything else can be set in the 
 | `flat_icons` | `false` | Use the flat icon set instead of the 3D icons. |
 | `tooltips` | `true` | Explain each figure on hover, or on long-press on a phone. |
 | `day_night` | `false` | Show the night-time picture while the sun is down. |
+| `dark_at_night` | `false` | Use the card's dark look while the sun is down, even with a light theme. |
 | `sun` | `sun.sun` | The sun entity that decides when it's night. |
 | `title` | `Printing impact` | The card's title. |
 | `subtitle` | `Environmental usage` | The line under the title. |
@@ -187,6 +191,7 @@ subtitle: Environmental usage
 illustration: /local/printing-impact/my-printer-light.png
 illustration_dark: /local/printing-impact/my-printer-dark.png
 day_night: true
+dark_at_night: true
 illustration_night: /local/printing-impact/my-printer-night.png
 descriptions:
   bulb_hours: The paper energy as hours of a 10 W LED bulb.
