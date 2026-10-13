@@ -1,0 +1,169 @@
+# Printing Impact Card: sensors and helpers
+# https://github.com/CameronSmith93/printing-environmental-impact-card-HA
+#
+# Creates everything the card reads, from the page counters of a printer set up with Home Assistant's
+# Brother integration. Written for a Brother MFC-L2730DW, whose entities start `mfc_l2730dw`.
+#
+#   1. Replace every `mfc_l2730dw` below with your own printer's entity prefix. Find it under
+#      Settings > Devices & services > Brother > your printer: the "Page counter" sensor is
+#      sensor.<prefix>_page_counter.
+#   2. Save this file as config/packages/printing_impact.yaml, and turn packages on in
+#      configuration.yaml if you haven't already:
+#
+#        homeassistant:
+#          packages: !include_dir_named packages
+#
+#   3. Check the configuration (Developer tools > YAML), restart, then set your prices and the
+#      in-service date under Settings > Devices & services > Helpers.
+#
+# Not a Brother printer? Only the two `mfc_l2730dw` counters below need to come from your printer.
+# See "Other printers" in the README for how to get them from SNMP or another integration.
+
+input_number:
+  printer_paper_price_per_ream:
+    name: Printer paper price per ream
+    min: 0
+    max: 100
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+    icon: mdi:paper-roll-outline
+  printer_toner_price:
+    name: Printer toner price
+    min: 0
+    max: 1000
+    step: 0.01
+    mode: box
+    unit_of_measurement: "$"
+    icon: mdi:printer-3d-nozzle
+  printer_toner_yield:
+    # Pages a cartridge really lasts. Rated yields assume 5% coverage; start with the rated figure and
+    # adjust once you see how fast the toner gauge drops (pages printed / fraction of toner used).
+    name: Printer toner yield
+    min: 100
+    max: 20000
+    step: 1
+    mode: box
+    unit_of_measurement: pages
+    icon: mdi:counter
+  printer_starter_toner_pages:
+    # Pages printed on the starter cartridge that came in the box, which cost nothing. Use 0 if unsure.
+    name: Printer starter toner pages
+    min: 0
+    max: 20000
+    step: 1
+    mode: box
+    unit_of_measurement: pages
+    icon: mdi:gift-outline
+
+input_datetime:
+  printer_in_service_since:
+    name: Printer in service since
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-start
+
+template:
+  - sensor:
+      - name: Printer sheets used
+        unique_id: printing_impact_sheets_used
+        unit_of_measurement: sheets
+        state_class: total_increasing
+        icon: mdi:file-document-multiple-outline
+        # The page counter counts printed sides. A double-sided sheet has two sides but is one sheet
+        # of paper, so take off half the sides printed by the duplex unit. Never goes backwards.
+        state: >
+          {% set sides = states('sensor.mfc_l2730dw_page_counter') | float(0) %}
+          {% set duplex_sides = states('sensor.mfc_l2730dw_duplex_unit_page_counter') | float(0) %}
+          {% set sheets = (sides - duplex_sides / 2) | round(0, 'ceil') | int %}
+          {{ [sheets, this.state | int(0)] | max }}
+
+      - name: Printer trees used
+        unique_id: printing_impact_trees_used
+        unit_of_measurement: trees
+        state_class: total_increasing
+        icon: mdi:tree
+        # 8,333 sheets of A4 to a tree (PaperCut's default)
+        state: "{{ (states('sensor.printer_sheets_used') | float(0) / 8333) | round(3) }}"
+
+      - name: Printer CO2 emissions
+        unique_id: printing_impact_co2_emissions
+        unit_of_measurement: kg
+        state_class: total_increasing
+        icon: mdi:molecule-co2
+        # 12.7 g CO2 equivalent per sheet, for making the paper (PaperCut's default)
+        state: "{{ (states('sensor.printer_sheets_used') | float(0) * 12.7 / 1000) | round(2) }}"
+
+      - name: Printer paper energy
+        unique_id: printing_impact_paper_energy
+        unit_of_measurement: kWh
+        state_class: total_increasing
+        icon: mdi:lightning-bolt
+        # 48 Wh per sheet, for making the paper (PaperCut's default)
+        state: "{{ (states('sensor.printer_sheets_used') | float(0) * 48 / 1000) | round(2) }}"
+
+      - name: Printer lightbulb hours
+        unique_id: printing_impact_lightbulb_hours
+        unit_of_measurement: h
+        state_class: total_increasing
+        icon: mdi:lightbulb-on-outline
+        # The paper energy as hours of a 60 W incandescent bulb. Change bulb_watts to 10 for an LED.
+        state: >
+          {% set bulb_watts = 60 %}
+          {{ (states('sensor.printer_sheets_used') | float(0) * 48 / bulb_watts) | round(1) }}
+
+      - name: Printer cost total
+        unique_id: printing_impact_cost_total
+        # Your currency's ISO code, so it shows as money (AUD, USD, GBP, EUR, ...)
+        unit_of_measurement: AUD
+        device_class: monetary
+        state_class: total
+        # Paper per sheet (a 500-sheet ream) plus toner per printed page, leaving out the pages printed
+        # on the free starter cartridge. Holds its value while the printer is off.
+        state: >
+          {% set ream = states('input_number.printer_paper_price_per_ream') | float(0) %}
+          {% set toner = states('input_number.printer_toner_price') | float(0) %}
+          {% set pages_per_cartridge = states('input_number.printer_toner_yield') | float(0) %}
+          {% set free_pages = states('input_number.printer_starter_toner_pages') | float(0) %}
+          {% set pages = states('sensor.mfc_l2730dw_page_counter') %}
+          {% if not is_number(pages) %}
+            {{ this.state if is_number(this.state) else none }}
+          {% else %}
+            {% set paper = states('sensor.printer_sheets_used') | float(0) * ream / 500 %}
+            {% set ink = ([pages | float - free_pages, 0] | max) * toner / pages_per_cartridge if pages_per_cartridge > 0 else 0 %}
+            {{ (paper + ink) | round(2) }}
+          {% endif %}
+
+      - name: Printer cost this month
+        unique_id: printing_impact_cost_this_month
+        unit_of_measurement: AUD
+        device_class: monetary
+        state: >
+          {% set ream = states('input_number.printer_paper_price_per_ream') | float(0) %}
+          {% set toner = states('input_number.printer_toner_price') | float(0) %}
+          {% set pages_per_cartridge = states('input_number.printer_toner_yield') | float(0) %}
+          {% set sheets = states('sensor.printer_sheets_this_month') | float(0) %}
+          {% set pages = states('sensor.printer_pages_this_month') | float(0) %}
+          {% set ink = pages * toner / pages_per_cartridge if pages_per_cartridge > 0 else 0 %}
+          {{ (sheets * ream / 500 + ink) | round(2) }}
+
+utility_meter:
+  printer_sheets_this_week:
+    name: Printer sheets this week
+    unique_id: printing_impact_sheets_this_week
+    source: sensor.printer_sheets_used
+    cycle: weekly
+    always_available: true
+  printer_sheets_this_month:
+    name: Printer sheets this month
+    unique_id: printing_impact_sheets_this_month
+    source: sensor.printer_sheets_used
+    cycle: monthly
+    always_available: true
+  printer_pages_this_month:
+    # Printed sides this month, for the toner part of this month's cost
+    name: Printer pages this month
+    unique_id: printing_impact_pages_this_month
+    source: sensor.mfc_l2730dw_page_counter
+    cycle: monthly
+    always_available: true
