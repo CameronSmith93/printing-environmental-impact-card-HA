@@ -4,7 +4,7 @@
     pip install pillow
     python3 build.py
 
-The artwork in assets/ is converted to WebP (icons at 160 px, illustrations at 640 px) and inlined as
+The artwork in assets/ (dark, light and the night scene) is converted to WebP (icons at 160 px, illustrations at 640 px) and inlined as
 data URIs, so the finished card is one file with nothing else to host. Flat icons are SVG and already
 live inside the card's source.
 """
@@ -48,6 +48,8 @@ def main() -> None:
                for key, name in FILES.items()}
         for mode in ('dark', 'light')
     }
+    # the night-time scene used when day_night is on
+    embedded['night'] = {'illustration': data_uri(ROOT / 'assets' / 'night' / 'illustration.png', SIZES['illustration'])}
     DIST.parent.mkdir(exist_ok=True)
     DIST.write_text(source.replace(PLACEHOLDER, json.dumps(embedded, separators=(',', ':'))), encoding='utf-8')
     print(f'Wrote {DIST.relative_to(ROOT)} ({DIST.stat().st_size / 1024:.0f} KB)')

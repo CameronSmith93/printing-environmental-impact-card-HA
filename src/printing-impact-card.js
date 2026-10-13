@@ -9,7 +9,7 @@
  * MIT licence. Not affiliated with Brother Industries or PaperCut Software.
  */
 (() => {
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const TAG = 'printing-impact-card';
 
   // Artwork. build.py swaps the null below for the 3D icons and illustrations as data URIs, so
@@ -61,6 +61,8 @@
     cost_month: 'sensor.printer_cost_this_month',
     since: 'input_datetime.printer_in_service_since',
     tooltips: true,
+    day_night: false,
+    sun: 'sun.sun',
     paper_price: 'input_number.printer_paper_price_per_ream',
     toner_price: 'input_number.printer_toner_price',
     toner_yield: 'input_number.printer_toner_yield',
@@ -69,6 +71,7 @@
 
   const LABELS = {
     title: 'Title', subtitle: 'Subtitle', flat_icons: 'Flat icons', tooltips: 'Descriptions on hover',
+    day_night: 'Night scene after sunset', sun: 'Sun entity', illustration_night: 'Night illustration URL (optional)',
     trees: 'Trees', co2: 'CO₂', paper_energy: 'Paper energy', bulb_hours: 'Bulb hours',
     sheets_month: 'Sheets this month', sheets_total: 'Sheets total', cost: 'Cost (total)',
     cost_month: 'Cost (this month)', since: 'In service since (date)', asset_base: 'Asset folder URL (optional)',
@@ -212,6 +215,7 @@
             type: 'grid', name: '', schema: [
               { name: 'flat_icons', selector: { boolean: {} } },
               { name: 'tooltips', selector: { boolean: {} } },
+              { name: 'day_night', selector: { boolean: {} } },
             ],
           },
           {
@@ -237,6 +241,8 @@
             type: 'expandable', name: '', title: 'Artwork', flatten: true, schema: [
               { name: 'illustration', selector: { text: {} } },
               { name: 'illustration_dark', selector: { text: {} } },
+              { name: 'illustration_night', selector: { text: {} } },
+              { name: 'sun', selector: { entity: { domain: 'sun' } } },
               { name: 'asset_base', selector: { text: {} } },
             ],
           },
@@ -245,6 +251,8 @@
         computeHelper: (s) => ({
           flat_icons: 'Use the flat icon set instead of the 3D icons.',
           tooltips: 'Hover (or long-press on a phone) to explain each figure.',
+          day_night: 'Show the night-time picture while the sun is down.',
+          illustration_night: 'Your own night-time picture. Leave blank to use the built-in one.',
           illustration: 'Your own printer picture, e.g. /local/my-printer.png. Square, transparent PNG works best.',
           illustration_dark: 'Optional separate picture for dark mode. Leave blank to use the one above.',
           asset_base: 'Folder with dark/ and light/ sub-folders of replacement artwork. Leave blank to use the built-in set.',
@@ -258,12 +266,22 @@
       this._render();
     }
 
+    // Night while the sun is below the horizon (day_night: true), from the sun integration
+    _nightFor(hass) {
+      const c = this._config || {};
+      if (!c.day_night) return false;
+      const sun = hass?.states?.[c.sun || 'sun.sun'];
+      return !!sun && sun.state === 'below_horizon';
+    }
+
     set hass(hass) {
       const dark = !!hass?.themes?.darkMode;
+      const night = this._nightFor(hass);
       const first = !this._hass;
       this._hass = hass;
-      if (first || dark !== this._dark) {
+      if (first || dark !== this._dark || night !== this._night) {
         this._dark = dark;
+        this._night = night;
         this._built = false;
         this._render();
       } else {
@@ -277,6 +295,13 @@
 
     _asset(mode, key) {
       const c = this._config;
+      if (key === 'illustration' && this._night) {
+        if (c.illustration_night) return c.illustration_night;
+        const nightBase = (c.asset_base || '').trim();
+        if (nightBase) return `${nightBase.replace(/\/?$/, '/')}night/illustration.png`;
+        if (EMBEDDED && EMBEDDED.night) return EMBEDDED.night.illustration;
+        try { return new URL('../assets/night/illustration.png', import.meta.url).href; } catch (e) { return ''; }
+      }
       if (key === 'illustration') {
         const own = mode === 'dark' ? (c.illustration_dark || c.illustration) : c.illustration;
         if (own) return own;

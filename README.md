@@ -34,6 +34,14 @@ There's a flat icon set too, switched on with one toggle in the card's settings.
 
 ![The card with flat icons, light mode](docs/card-flat-light.png)
 
+### Day and night
+
+Turn on **Night scene after sunset** and the printer's picture follows the sun: the usual scene
+while it's up, a moonlit version once it sets. Nothing else on the card changes. It uses Home
+Assistant's built-in sun integration, so it follows your location and the seasons with no set-up.
+
+![Day and night, in light and dark mode](docs/day-night.png)
+
 ### What each figure means
 
 Hover over any figure for a short explanation of how it's worked out. On a phone, long-press instead;
@@ -146,6 +154,8 @@ If you used the package, that's all it needs. Everything else can be set in the 
 |---|---|---|
 | `flat_icons` | `false` | Use the flat icon set instead of the 3D icons. |
 | `tooltips` | `true` | Explain each figure on hover, or on long-press on a phone. |
+| `day_night` | `false` | Show the night-time picture while the sun is down. |
+| `sun` | `sun.sun` | The sun entity that decides when it's night. |
 | `title` | `Printing impact` | The card's title. |
 | `subtitle` | `Environmental usage` | The line under the title. |
 | `trees` | `sensor.printer_trees_used` | Trees used. |
@@ -163,7 +173,8 @@ If you used the package, that's all it needs. Everything else can be set in the 
 | `starter_pages` | `input_number.printer_starter_toner_pages` | Used in the Cost description. |
 | `illustration` | built-in | Your own printer picture (see below). |
 | `illustration_dark` | `illustration` | A separate picture for dark mode. |
-| `asset_base` | built-in | A folder with `dark/` and `light/` sub-folders of replacement artwork, using the file names in [`assets/`](assets). |
+| `illustration_night` | built-in | Your own night-time picture, for `day_night`. |
+| `asset_base` | built-in | A folder with `dark/`, `light/` and `night/` sub-folders of replacement artwork, using the file names in [`assets/`](assets). |
 | `descriptions` | built-in | Your own hover text, keyed by figure: `trees`, `co2`, `paper_energy`, `bulb_hours`, `sheets_month`, `sheets_total`, `cost`, `since`. |
 
 A fuller example:
@@ -175,6 +186,8 @@ title: Study printer
 subtitle: Environmental usage
 illustration: /local/printing-impact/my-printer-light.png
 illustration_dark: /local/printing-impact/my-printer-dark.png
+day_night: true
+illustration_night: /local/printing-impact/my-printer-night.png
 descriptions:
   bulb_hours: The paper energy as hours of a 10 W LED bulb.
 ```
@@ -196,9 +209,11 @@ The printer in the illustration is my MFC-L2730DW. To show yours:
    [`assets/dark/illustration.png`](assets/dark/illustration.png) as style references. Ask for the same
    scene (your printer on a round plinth, with two trees behind and a stack of paper beside it) as a
    square PNG with a transparent background, about 1,000 px across. Make one with the pale sage plinth
-   for light mode and one with the dark green plinth for dark mode.
+   for light mode and one with the dark green plinth for dark mode. For `day_night`, add a third: the
+   same scene at night, lit by moonlight, like [`assets/night/illustration.png`](assets/night/illustration.png).
 3. **Add it to Home Assistant.** Copy the two files into `config/www/printing-impact/`, then set
-   `illustration` and `illustration_dark` to `/local/printing-impact/<file name>`.
+   `illustration` and `illustration_dark` (and `illustration_night`) to
+   `/local/printing-impact/<file name>`.
 
 ## Other printers
 
@@ -231,7 +246,7 @@ That gives you `sensor.printer_page_counter` to use in place of the Brother one.
 ## Building from source
 
 The card's source is [`src/printing-impact-card.js`](src/printing-impact-card.js). The 3D icons and
-illustrations in [`assets/`](assets) are built into
+illustrations in [`assets/`](assets), including the night scene, are built into
 [`dist/printing-impact-card.js`](dist/printing-impact-card.js) by [`build.py`](build.py):
 
 ```sh
